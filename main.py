@@ -1,0 +1,214 @@
+import glfw
+import moderngl
+import math
+import glm
+import numpy as np
+
+ANCHO = int(1920/2)
+ALTO = int(1080/2)
+FOV = glm.radians(45) 
+RATIO = ANCHO/ALTO
+SENS = 0.1
+yaw = -90.0
+pitch = 0.0
+last_x = ANCHO / 2
+last_y = ALTO / 2
+primerMouse = True
+direccion = glm.vec3(0.0, 0.0, -1.0)
+v2 = glm.vec3(0,0,0)
+velocidad=0.05
+velo_y = 0.0
+grav = 0.002
+
+def leerArchivo():
+    posiciones, normales = [], []
+    out_pos, out_nor = [], []
+    with open("cilindro.obj") as f:
+        for linea in f:
+            if linea.startswith("v "):
+                posiciones.append([float(a) for a in linea.split()[1:]])
+            elif linea.startswith("vn "):
+                normales.append([float(a) for a in linea.split()[1:]])
+            elif linea.startswith("f "):
+                cara = [p.split("/") for p in linea.split()[1:]]
+                for i in range(1, len(cara) - 1):
+                    for k in (0, i, i + 1):
+                        v = cara[k]
+                        out_pos.append(posiciones[int(v[0]) - 1])
+                        out_nor.append(normales[int(v[2]) - 1])
+    return np.array(out_pos, dtype='f4'), np.array(out_nor, dtype='f4')
+
+def mouseCallback(window,xpos,ypos):
+    global yaw,pitch,last_x,last_y,primerMouse,direccion
+    #para evitar el primer sobresalto de la camara
+    if(primerMouse):
+        last_x = ANCHO/2
+        last_y = ALTO/2
+        primerMouse = False
+
+    xOff = xpos-last_x
+    yOff = last_y-ypos
+    last_x = xpos
+    last_y = ypos
+    xOff *= SENS
+    yOff *= SENS
+    pitch += yOff
+    yaw += xOff
+    # restricciones para que no haga movimientos locos
+    if(pitch > 89):
+        pitch = 89
+    if(pitch < -89):
+        pitch = -89
+    
+    direccion_x = math.cos(glm.radians(pitch)) * math.cos(glm.radians(yaw))
+    direccion_y = math.sin(glm.radians(pitch)) 
+    direccion_z = math.cos(glm.radians(pitch)) * math.sin(glm.radians(yaw))
+    direccion = glm.vec3(direccion_x, direccion_y, direccion_z)
+
+
+
+def main():
+    global v2, velo_y
+    #Preparacion del entorno
+    #iniciaizacion de glfw
+    if not glfw.init():
+        #manejo de errores
+        raise Exception("No se inicializo glfw")
+
+    #hints los parametros son constantes de GLFW
+    glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 3)
+    glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 3)
+    glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
+
+    #creacion de una ventana y contexto
+    window = glfw.create_window(ANCHO,ALTO, "Tunel de la Ciencia", None, None)
+    if not window:
+        glfw.terminate()
+        raise Exception("No se creo la ventana de GLFW")
+        return
+
+    glfw.make_context_current(window)
+
+    # Bloque 3 Configuracion de 
+    codigo_vertex = """
+    #version 330 core
+
+    in vec3 in_posicion;
+    uniform mat4 matriz_vista;
+    uniform mat4 matriz_proyeccion;
+    in vec3 in_normales;
+    out vec3 normal_vertice;
+    out vec3 posicion_vertice;
+
+    void main() {
+        gl_Position = matriz_proyeccion * matriz_vista * vec4(in_posicion, 1.0);
+        normal_vertice = in_normales;
+        posicion_vertice = in_posicion;
+    }
+    """
+    codigo_fragment = """
+    #version 330 core
+    out vec4 color_pantalla;
+    uniform vec3 lampara_1;
+    uniform vec3 lampara_2;
+
+    in vec3 normal_vertice;
+    in vec3 posicion_vertice;
+
+    void main() {
+        vec3 norm = normalize(normal_vertice);
+
+        vec3 v1 = lampara_1 - posicion_vertice;
+        //vec3 v2 = lampara_2 - posicion_vertice;
+
+        float d1 = max(dot(norm, normalize(v1)), 0.0) / (1.0 + 0.095 * dot(v1, v1));
+        //float d2 = max(dot(norm, normalize(v2)), 0.0) / (1.0 + 0.05 * dot(v2, v2));
+
+        float factor = smoothstep(0.98, 1.0 , gl_FragCoord.z);
+        
+        float total = d1 + 0.3;
+        
+        color_pantalla = mix(vec4(vec3(1.0) * total, 1.0), vec4(0,0,0,1), factor);
+    }
+    """
+
+    contx = moderngl.create_context()
+    print(f"Debugg GPU detectada : {contx.info['GL_RENDERER']}") 
+    contx.enable(moderngl.DEPTH_TEST)
+    programa = contx.program(vertex_shader=codigo_vertex, fragment_shader=codigo_fragment)
+    a1, a2 = leerArchivo()
+    vbo = contx.buffer(a1.tobytes())
+    vbo_normales = contx.buffer(a2.tobytes())
+    vao = contx.vertex_array(programa, [
+        (vbo, '3f', 'in_posicion'),
+        (vbo_normales, '3f', 'in_normales'),
+    ])
+
+    minimos = a1.min(axis=0)
+    maximos = a1.max(axis=0)
+    radio_tunel = np.max(np.abs(a1[0]))
+    centro  = (minimos + maximos) / 2
+    largo = maximos[2] - minimos[2]
+    programa['lampara_1'].value = (centro[0], centro[1], centro[2])
+    #programa['lampara_2'].value = (centro[0], centro[1], centro[2] + largo/4)
+
+    glfw.set_cursor_pos_callback(window, mouseCallback)
+    glfw.set_input_mode(window, glfw.CURSOR, glfw.CURSOR_DISABLED)
+
+    #Bucle de renderizado
+    while not glfw.window_should_close(window):
+        # aca va la renderizacion que hare con ModernGL
+        glfw.poll_events() #para procesar los eventos
+        matrizPerspectiva = glm.perspective(FOV, RATIO,0.1,1000)    
+        #vectores para la camara
+        v1 = glm.vec3(0,1,0)
+        v3 = glm.vec3(0,1,-5)
+        direccion_piso = glm.vec3(direccion.x, 0.0, direccion.z)
+        direccion_piso = glm.normalize(direccion_piso)
+
+        vec_mov = vec2
+
+        if glfw.get_key(window, glfw.KEY_W) == glfw.PRESS:
+            vec_mov += velocidad * direccion_piso
+
+        if glfw.get_key(window, glfw.KEY_S) == glfw.PRESS:
+            vec_mov -= velocidad * direccion_piso
+
+        if glfw.get_key(window, glfw.KEY_SPACE) == glfw.PRESS and v2.y == 0.0:
+            velo_y = 0.06
+
+        derecha = glm.normalize(glm.cross(direccion, v1))
+
+        if glfw.get_key(window, glfw.KEY_A) == glfw.PRESS:
+            vec_mov -= velocidad * derecha
+        if glfw.get_key(window, glfw.KEY_D) == glfw.PRESS:
+            vec_mov += velocidad * derecha
+
+        velo_y -= grav
+        v2.y += velo_y
+
+        if v2.y < 0 :
+            velo_y = 0
+            v2 = glm.vec3(v2.x,0.0,v2.z)
+
+        vector_choque = glm.vec3(vec_mov.x*velocidad, vec_mov.y, vec_mov.z*velocidad)
+        espacio_permitido = math.sqrt(vector_choque.x**2 + vector_choque.z **2)
+        if espacio_permitido < radio_tunel:
+            v2 = vector_choque
+
+
+        matrizCamara = glm.lookAt(v2,v2+direccion,v1)
+        programa['matriz_vista'].write(matrizCamara.to_bytes())
+        programa['matriz_proyeccion'].write(matrizPerspectiva.to_bytes())
+        #al final se debe limpiar la pantalla para mostrar lo siguiente 
+        contx.clear(0.15, 0.15, 0.15, 1.0, depth=1.0)
+        vao.render()
+        #como glfw usa dos buffers uno para mostrar y otro para procesar
+        #de fondo hay que indicar que haga el swap de estos buffers
+        glfw.swap_buffers(window)
+    
+    # terminar y cerrar glfw
+    glfw.terminate()
+
+if __name__ == "__main__":
+    main()
