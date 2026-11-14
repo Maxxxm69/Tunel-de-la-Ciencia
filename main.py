@@ -146,8 +146,8 @@ def main():
 
     minimos = a1.min(axis=0)
     maximos = a1.max(axis=0)
-    radio_tunel = np.max(np.abs(a1[0]))
     centro  = (minimos + maximos) / 2
+    radio = np.abs(centro[0] - maximos[0])
     largo = maximos[2] - minimos[2]
     programa['lampara_1'].value = (centro[0], centro[1], centro[2])
     #programa['lampara_2'].value = (centro[0], centro[1], centro[2] + largo/4)
@@ -166,16 +166,12 @@ def main():
         direccion_piso = glm.vec3(direccion.x, 0.0, direccion.z)
         direccion_piso = glm.normalize(direccion_piso)
 
-        vec_mov = vec2
-
+        vec_mov = glm.vec3(0,0,0)
         if glfw.get_key(window, glfw.KEY_W) == glfw.PRESS:
             vec_mov += velocidad * direccion_piso
 
         if glfw.get_key(window, glfw.KEY_S) == glfw.PRESS:
-            vec_mov -= velocidad * direccion_piso
-
-        if glfw.get_key(window, glfw.KEY_SPACE) == glfw.PRESS and v2.y == 0.0:
-            velo_y = 0.06
+            vec_mov -= velocidad * direccion_piso    
 
         derecha = glm.normalize(glm.cross(direccion, v1))
 
@@ -184,17 +180,27 @@ def main():
         if glfw.get_key(window, glfw.KEY_D) == glfw.PRESS:
             vec_mov += velocidad * derecha
 
-        velo_y -= grav
+        velo_y -= 0.002
         v2.y += velo_y
 
         if v2.y < 0 :
             velo_y = 0
             v2 = glm.vec3(v2.x,0.0,v2.z)
+            suelo = True
+        else:
+            suelo =  False
 
-        vector_choque = glm.vec3(vec_mov.x*velocidad, vec_mov.y, vec_mov.z*velocidad)
-        espacio_permitido = math.sqrt(vector_choque.x**2 + vector_choque.z **2)
-        if espacio_permitido < radio_tunel:
-            v2 = vector_choque
+        if suelo and glfw.get_key(window, glfw.KEY_SPACE) == glfw.PRESS:
+            velo_y = 0.06
+        
+        posicion_candidata =  v2 + vec_mov
+        distancia = math.sqrt((centro[0] - posicion_candidata.x)**2 + (centro[1] - posicion_candidata.y)**2)
+        if distancia < radio:
+            v2 = posicion_candidata
+        else:
+            v2 = glm.vec3(v2.x, v2.y, posicion_candidata.z)
+
+
 
 
         matrizCamara = glm.lookAt(v2,v2+direccion,v1)
