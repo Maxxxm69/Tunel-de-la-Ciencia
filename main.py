@@ -11,24 +11,24 @@ ALTO = int(1080/2)
 FOV = glm.radians(45) 
 RATIO = ANCHO/ALTO
 SENS = 0.1
+IMAGEN = "atlas.png"
 yaw = -90.0
 pitch = 0.0
 last_x = ANCHO / 2
 last_y = ALTO / 2
 primerMouse = True
 direccion = glm.vec3(0.0, 0.0, -1.0)
-v2 = glm.vec3(0,0,0)
+v2 = glm.vec3(0,1.5,0)
 velocidad=0.05
 velo_y = 0.0
 grav = 0.002
 
 def abrirAtlas():
-    with Image.open("atlas.png") as im:
+    with Image.open(IMAGEN) as im:
         canales = im.transpose(method=Image.FLIP_TOP_BOTTOM)
         canales = canales.convert("RGB")
         tamano = canales.size
         px = canales.tobytes()
-
     return tamano, canales, px
 
 
@@ -37,6 +37,8 @@ def leerArchivo():
     posiciones, normales = [], []
     out_pos, out_nor = [], []
     vt, out_vt = [], []
+    cilindro = []
+    objeto = ""
     with open("cilindro.obj") as f:
         for linea in f:
             if linea.startswith("v "):
@@ -51,10 +53,13 @@ def leerArchivo():
                     for k in (0, i, i + 1):
                         v = cara[k]
                         out_pos.append(posiciones[int(v[0]) - 1])
+                        if objeto == "Cylinder":
+                            cilindro.append(posiciones[int(v[0]) - 1])
                         out_vt.append(vt[int(v[1]) - 1])
                         out_nor.append(normales[int(v[2]) - 1])
-
-    return np.array(out_pos, dtype='f4'), np.array(out_nor, dtype='f4'), np.array(out_vt, dtype='f4')
+            elif linea.startswith("o "):
+                objeto = linea.split()[1:][0]
+    return np.array(out_pos, dtype='f4'), np.array(out_nor, dtype='f4'), np.array(out_vt, dtype='f4'), np.array(cilindro, dtype='f4')
 
 def mouseCallback(window,xpos,ypos):
     global yaw,pitch,last_x,last_y,primerMouse,direccion
@@ -162,7 +167,7 @@ def main():
     print(f"Debugg GPU detectada : {contx.info['GL_RENDERER']}") 
     contx.enable(moderngl.DEPTH_TEST)
     programa = contx.program(vertex_shader=codigo_vertex, fragment_shader=codigo_fragment)
-    a1, a2, uv = leerArchivo()
+    a1, a2, uv,cilindro = leerArchivo()
     vbo = contx.buffer(a1.tobytes())
     vbo_normales = contx.buffer(a2.tobytes())
     uv_buffer = contx.buffer(uv.tobytes())
@@ -178,8 +183,10 @@ def main():
         (uv_buffer, '2f', 'in_uvs'),
     ])
 
-    minimos = a1.min(axis=0)
-    maximos = a1.max(axis=0)
+    minimos = cilindro.min(axis=0)
+    maximos = cilindro.max(axis=0)
+    print(minimos)
+    print(maximos)
     centro  = (minimos + maximos) / 2
     radio = np.abs(centro[0] - maximos[0])
     largo = maximos[2] - minimos[2]
@@ -219,9 +226,9 @@ def main():
         velo_y -= 0.002
         v2.y += velo_y
 
-        if v2.y < 0 :
+        if v2.y < 1 :
             velo_y = 0
-            v2 = glm.vec3(v2.x,0.0,v2.z)
+            v2 = glm.vec3(v2.x,1.0,v2.z)
             suelo = True
         else:
             suelo =  False
