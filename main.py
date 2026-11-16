@@ -3,6 +3,8 @@ import moderngl
 import math
 import glm
 import numpy as np
+from PIL import Image
+
 
 ANCHO = int(1920/2)
 ALTO = int(1080/2)
@@ -20,23 +22,39 @@ velocidad=0.05
 velo_y = 0.0
 grav = 0.002
 
+def abrirAtlas():
+    with Image.open("atlas.png") as im:
+        canales = im.transpose(method=Image.FLIP_TOP_BOTTOM)
+        canales = canales.convert("RGB")
+        tamano = canales.size
+        px = canales.tobytes()
+
+    return tamano, canales, px
+
+
+
 def leerArchivo():
     posiciones, normales = [], []
     out_pos, out_nor = [], []
+    vt, out_vt = [], []
     with open("cilindro.obj") as f:
         for linea in f:
             if linea.startswith("v "):
                 posiciones.append([float(a) for a in linea.split()[1:]])
             elif linea.startswith("vn "):
                 normales.append([float(a) for a in linea.split()[1:]])
+            elif linea.startswith("vt "):
+                vt.append([float(a) for a in linea.split()[1:]])
             elif linea.startswith("f "):
                 cara = [p.split("/") for p in linea.split()[1:]]
                 for i in range(1, len(cara) - 1):
                     for k in (0, i, i + 1):
                         v = cara[k]
                         out_pos.append(posiciones[int(v[0]) - 1])
+                        out_vt.append(vt[int(v[1]) - 1])
                         out_nor.append(normales[int(v[2]) - 1])
-    return np.array(out_pos, dtype='f4'), np.array(out_nor, dtype='f4')
+
+    return np.array(out_pos, dtype='f4'), np.array(out_nor, dtype='f4'), np.array(out_vt, dtype='f4')
 
 def mouseCallback(window,xpos,ypos):
     global yaw,pitch,last_x,last_y,primerMouse,direccion
@@ -97,13 +115,17 @@ def main():
     uniform mat4 matriz_vista;
     uniform mat4 matriz_proyeccion;
     in vec3 in_normales;
+    in vec2 in_uvs;
+
     out vec3 normal_vertice;
     out vec3 posicion_vertice;
+    out vec2 out_uvs;
 
     void main() {
         gl_Position = matriz_proyeccion * matriz_vista * vec4(in_posicion, 1.0);
         normal_vertice = in_normales;
         posicion_vertice = in_posicion;
+        out_uvs = in_uvs;
     }
     """
     codigo_fragment = """
@@ -111,9 +133,11 @@ def main():
     out vec4 color_pantalla;
     uniform vec3 lampara_1;
     uniform vec3 lampara_2;
+    uniform sampler2D textura;
 
     in vec3 normal_vertice;
     in vec3 posicion_vertice;
+    in vec2 out_uvs;
 
     void main() {
         vec3 norm = normalize(normal_vertice);
@@ -128,7 +152,9 @@ def main():
         
         float total = d1 + 0.3;
         
-        color_pantalla = mix(vec4(vec3(1.0) * total, 1.0), vec4(0,0,0,1), factor);
+        vec4 colorImage = texture(textura, out_uvs);
+
+        color_pantalla = mix(colorImage * total, vec4(0,0,0,1), factor);
     }
     """
 
@@ -136,12 +162,20 @@ def main():
     print(f"Debugg GPU detectada : {contx.info['GL_RENDERER']}") 
     contx.enable(moderngl.DEPTH_TEST)
     programa = contx.program(vertex_shader=codigo_vertex, fragment_shader=codigo_fragment)
-    a1, a2 = leerArchivo()
+    a1, a2, uv = leerArchivo()
     vbo = contx.buffer(a1.tobytes())
     vbo_normales = contx.buffer(a2.tobytes())
+    uv_buffer = contx.buffer(uv.tobytes())
+    tamano,canales,px = abrirAtlas()
+    textura = contx.texture(tamano,3,px)
+    minimapa = textura.build_mipmaps()
+    textura.filter = (moderngl.LINEAR_MIPMAP_LINEAR, moderngl.LINEAR)
+    textura.use(location=0)
+    programa['textura'].value = 0
     vao = contx.vertex_array(programa, [
         (vbo, '3f', 'in_posicion'),
         (vbo_normales, '3f', 'in_normales'),
+        (uv_buffer, '2f', 'in_uvs'),
     ])
 
     minimos = a1.min(axis=0)
@@ -151,6 +185,8 @@ def main():
     largo = maximos[2] - minimos[2]
     programa['lampara_1'].value = (centro[0], centro[1], centro[2])
     #programa['lampara_2'].value = (centro[0], centro[1], centro[2] + largo/4)
+
+    
 
     glfw.set_cursor_pos_callback(window, mouseCallback)
     glfw.set_input_mode(window, glfw.CURSOR, glfw.CURSOR_DISABLED)
