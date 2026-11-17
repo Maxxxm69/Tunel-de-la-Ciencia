@@ -121,15 +121,17 @@ def main():
     uniform mat4 matriz_proyeccion;
     in vec3 in_normales;
     in vec2 in_uvs;
+    uniform mat4 matriz_traslacion;
 
     out vec3 normal_vertice;
     out vec3 posicion_vertice;
     out vec2 out_uvs;
 
     void main() {
-        gl_Position = matriz_proyeccion * matriz_vista * vec4(in_posicion, 1.0);
+        vec4 vertice_trasladado = matriz_traslacion* vec4(in_posicion, 1.0);
+        gl_Position = matriz_proyeccion * matriz_vista * vertice_trasladado;
         normal_vertice = in_normales;
-        posicion_vertice = in_posicion;
+        posicion_vertice = vertice_trasladado.xyz;
         out_uvs = in_uvs;
     }
     """
@@ -177,23 +179,17 @@ def main():
     textura.filter = (moderngl.LINEAR_MIPMAP_LINEAR, moderngl.LINEAR)
     textura.use(location=0)
     programa['textura'].value = 0
+    minimos = cilindro.min(axis=0)
+    maximos = cilindro.max(axis=0)
+    centro  = (minimos + maximos) / 2
+    radio = np.abs(centro[0] - maximos[0])
+    largo = maximos[2] - minimos[2]
     vao = contx.vertex_array(programa, [
         (vbo, '3f', 'in_posicion'),
         (vbo_normales, '3f', 'in_normales'),
         (uv_buffer, '2f', 'in_uvs'),
     ])
 
-    minimos = cilindro.min(axis=0)
-    maximos = cilindro.max(axis=0)
-    print(minimos)
-    print(maximos)
-    centro  = (minimos + maximos) / 2
-    radio = np.abs(centro[0] - maximos[0])
-    largo = maximos[2] - minimos[2]
-    programa['lampara_1'].value = (centro[0], centro[1], centro[2])
-    #programa['lampara_2'].value = (centro[0], centro[1], centro[2] + largo/4)
-
-    
 
     glfw.set_cursor_pos_callback(window, mouseCallback)
     glfw.set_input_mode(window, glfw.CURSOR, glfw.CURSOR_DISABLED)
@@ -243,15 +239,18 @@ def main():
         else:
             v2 = glm.vec3(v2.x, v2.y, posicion_candidata.z)
 
-
-
-
         matrizCamara = glm.lookAt(v2,v2+direccion,v1)
         programa['matriz_vista'].write(matrizCamara.to_bytes())
         programa['matriz_proyeccion'].write(matrizPerspectiva.to_bytes())
         #al final se debe limpiar la pantalla para mostrar lo siguiente 
         contx.clear(0.15, 0.15, 0.15, 1.0, depth=1.0)
-        vao.render()
+
+        for i in (-1,0,1):
+            desplazamiento = i*largo
+            matriz_modelo = glm.translate(glm.vec3(0,0,float(desplazamiento)))
+            programa['matriz_traslacion'].write(matriz_modelo.to_bytes())
+            programa['lampara_1'].value = (centro[0], centro[1], centro[2] + desplazamiento)
+            vao.render()
         #como glfw usa dos buffers uno para mostrar y otro para procesar
         #de fondo hay que indicar que haga el swap de estos buffers
         glfw.swap_buffers(window)
