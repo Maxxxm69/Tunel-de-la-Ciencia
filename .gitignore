@@ -4,3 +4,6 @@ cilindro.blend1
 cilindro.mtl
 viaL.jpg
 cilindro.obj
+.gitignore
+atlas.xcf
+*jpg

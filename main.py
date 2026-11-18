@@ -19,7 +19,7 @@ last_y = ALTO / 2
 primerMouse = True
 direccion = glm.vec3(0.0, 0.0, -1.0)
 v2 = glm.vec3(0,1.5,0)
-velocidad=0.05
+velocidad=0.5
 velo_y = 0.0
 grav = 0.002
 
@@ -111,6 +111,7 @@ def main():
         return
 
     glfw.make_context_current(window)
+    glfw.swap_interval(1)
 
     # Bloque 3 Configuracion de 
     codigo_vertex = """
@@ -141,6 +142,7 @@ def main():
     uniform vec3 lampara_1;
     uniform vec3 lampara_2;
     uniform sampler2D textura;
+    uniform vec3 posicion_camara;
 
     in vec3 normal_vertice;
     in vec3 posicion_vertice;
@@ -149,13 +151,15 @@ def main():
     void main() {
         vec3 norm = normalize(normal_vertice);
 
+        float distancia = length(posicion_camara - posicion_vertice);
+
         vec3 v1 = lampara_1 - posicion_vertice;
         //vec3 v2 = lampara_2 - posicion_vertice;
 
         float d1 = max(dot(norm, normalize(v1)), 0.0) / (1.0 + 0.095 * dot(v1, v1));
         //float d2 = max(dot(norm, normalize(v2)), 0.0) / (1.0 + 0.05 * dot(v2, v2));
 
-        float factor = smoothstep(0.98, 1.0 , gl_FragCoord.z);
+        float factor = smoothstep(2,20, distancia);
         
         float total = d1 + 0.3;
         
@@ -178,6 +182,8 @@ def main():
     minimapa = textura.build_mipmaps()
     textura.filter = (moderngl.LINEAR_MIPMAP_LINEAR, moderngl.LINEAR)
     textura.use(location=0)
+    textura.repeat_y = False
+    textura.repeat_x = False
     programa['textura'].value = 0
     minimos = cilindro.min(axis=0)
     maximos = cilindro.max(axis=0)
@@ -205,6 +211,7 @@ def main():
         direccion_piso = glm.vec3(direccion.x, 0.0, direccion.z)
         direccion_piso = glm.normalize(direccion_piso)
 
+
         vec_mov = glm.vec3(0,0,0)
         if glfw.get_key(window, glfw.KEY_W) == glfw.PRESS:
             vec_mov += velocidad * direccion_piso
@@ -219,7 +226,7 @@ def main():
         if glfw.get_key(window, glfw.KEY_D) == glfw.PRESS:
             vec_mov += velocidad * derecha
 
-        velo_y -= 0.002
+        velo_y -= grav
         v2.y += velo_y
 
         if v2.y < 1 :
@@ -243,7 +250,7 @@ def main():
         programa['matriz_vista'].write(matrizCamara.to_bytes())
         programa['matriz_proyeccion'].write(matrizPerspectiva.to_bytes())
         #al final se debe limpiar la pantalla para mostrar lo siguiente 
-        contx.clear(0.15, 0.15, 0.15, 1.0, depth=1.0)
+        contx.clear(0.15,0.15,0.15, 1.0, depth=1.0)
 
         for i in (-1,0,1):
             desplazamiento = i*largo
@@ -251,6 +258,7 @@ def main():
             programa['matriz_traslacion'].write(matriz_modelo.to_bytes())
             programa['lampara_1'].value = (centro[0], centro[1], centro[2] + desplazamiento)
             vao.render()
+        programa['posicion_camara']=v2
         #como glfw usa dos buffers uno para mostrar y otro para procesar
         #de fondo hay que indicar que haga el swap de estos buffers
         glfw.swap_buffers(window)
