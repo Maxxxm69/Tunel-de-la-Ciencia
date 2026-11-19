@@ -22,6 +22,9 @@ v2 = glm.vec3(0,1.5,0)
 velocidad=0.5
 velo_y = 0.0
 grav = 0.002
+lista=[-3,-2,-1,0,1,2,3]
+
+
 
 def abrirAtlas():
     with Image.open(IMAGEN) as im:
@@ -195,7 +198,8 @@ def main():
         (vbo_normales, '3f', 'in_normales'),
         (uv_buffer, '2f', 'in_uvs'),
     ])
-
+    limite_z_inferior = (min(lista) * largo - largo / 2) + 3
+    limite_z_superior = (max(lista) * largo + largo / 2) - 3 
 
     glfw.set_cursor_pos_callback(window, mouseCallback)
     glfw.set_input_mode(window, glfw.CURSOR, glfw.CURSOR_DISABLED)
@@ -210,8 +214,6 @@ def main():
         v3 = glm.vec3(0,1,-5)
         direccion_piso = glm.vec3(direccion.x, 0.0, direccion.z)
         direccion_piso = glm.normalize(direccion_piso)
-
-
         vec_mov = glm.vec3(0,0,0)
         if glfw.get_key(window, glfw.KEY_W) == glfw.PRESS:
             vec_mov += velocidad * direccion_piso
@@ -241,24 +243,32 @@ def main():
         
         posicion_candidata =  v2 + vec_mov
         distancia = math.sqrt((centro[0] - posicion_candidata.x)**2 + (centro[1] - posicion_candidata.y)**2)
+        posicion_candidata.z = max(limite_z_inferior, min(posicion_candidata.z,limite_z_superior))
+
         if distancia < radio:
             v2 = posicion_candidata
         else:
             v2 = glm.vec3(v2.x, v2.y, posicion_candidata.z)
+        
 
         matrizCamara = glm.lookAt(v2,v2+direccion,v1)
         programa['matriz_vista'].write(matrizCamara.to_bytes())
         programa['matriz_proyeccion'].write(matrizPerspectiva.to_bytes())
+        programa['posicion_camara']=v2
         #al final se debe limpiar la pantalla para mostrar lo siguiente 
         contx.clear(0.15,0.15,0.15, 1.0, depth=1.0)
 
-        for i in (-1,0,1):
+        for i in lista:
             desplazamiento = i*largo
-            matriz_modelo = glm.translate(glm.vec3(0,0,float(desplazamiento)))
-            programa['matriz_traslacion'].write(matriz_modelo.to_bytes())
+            matriz_traslacion = glm.translate(glm.vec3(0,0,float(desplazamiento)))
+            if i%2 == 0:
+                matriz_escalar = glm.scale(glm.vec3(1,1,1))
+            elif i%2 == 1:
+                matriz_escalar = glm.scale(glm.vec3(1,1,-1))
+            matriz_modelo = matriz_traslacion * matriz_escalar
+            programa['matriz_traslacion'].write(matriz_modelo)
             programa['lampara_1'].value = (centro[0], centro[1], centro[2] + desplazamiento)
             vao.render()
-        programa['posicion_camara']=v2
         #como glfw usa dos buffers uno para mostrar y otro para procesar
         #de fondo hay que indicar que haga el swap de estos buffers
         glfw.swap_buffers(window)
