@@ -145,7 +145,6 @@ def main():
     #version 330 core
     out vec4 color_pantalla;
     uniform vec3 lampara_1;
-    uniform vec3 lampara_2;
     uniform sampler2D textura;
     uniform vec3 posicion_camara;
 
@@ -154,23 +153,23 @@ def main():
     in vec2 out_uvs;
 
     void main() {
+        vec3 dir_cam = normalize(posicion_camara - posicion_vertice);
         vec3 norm = normalize(normal_vertice);
-
         float distancia = length(posicion_camara - posicion_vertice);
-
         vec3 v1 = lampara_1 - posicion_vertice;
-        //vec3 v2 = lampara_2 - posicion_vertice;
-
         float d1 = max(dot(norm, normalize(v1)), 0.0) / (1.0 + 0.095 * dot(v1, v1));
-        //float d2 = max(dot(norm, normalize(v2)), 0.0) / (1.0 + 0.05 * dot(v2, v2));
-
         float factor = smoothstep(2,20, distancia);
-        
         float total = d1 + 0.3;
         
-        vec4 colorImage = texture(textura, out_uvs);
+        
+        vec3 v1_norm = normalize(v1);
+        vec3 vect_ref = reflect(-dir_cam,norm);
+        float intensidad = max(dot(vect_ref,v1_norm),0.0);
+        float potencia = pow(intensidad,32.0)*d1;
 
-        color_pantalla = mix(colorImage * total, vec4(0,0,0,1), factor);
+        vec4 colorImage = texture(textura, out_uvs);
+        vec4 brillo = colorImage * total + potencia;
+        color_pantalla = mix(brillo, vec4(0,0,0,1), factor);   
     }
     """
 
@@ -295,12 +294,11 @@ def main():
             programa['lampara_1'].value = (centro[0], centro[1], centro[2] + desplazamiento)
             programa['matriz_traslacion'].write(matriz_modelo)
             if np.abs(i) >= max(lista):
-                vao.render(vertices=rangos.get("Plane").get("cantidad"),first=rangos.get("Plane").get("inicio"))
                 vao.render(vertices=rangos.get("Cylinder.001").get("cantidad"),first=rangos.get("Cylinder.001").get("inicio"))
             else:
-                vao.render(vertices=rangos.get("Plane").get("cantidad"),first=rangos.get("Plane").get("inicio"))
                 vao.render(vertices=rangos.get("Cylinder").get("cantidad"),first=rangos.get("Cylinder").get("inicio"))
-                
+            vao.render(vertices=rangos.get("Plane").get("cantidad"),first=rangos.get("Plane").get("inicio"))
+
         #como glfw usa dos buffers uno para mostrar y otro para procesar
         #de fondo hay que indicar que haga el swap de estos buffers
         glfw.swap_buffers(window)
