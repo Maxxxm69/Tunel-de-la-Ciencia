@@ -164,8 +164,8 @@ def main():
         
         vec3 v1_norm = normalize(v1);
         vec3 vect_ref = reflect(-dir_cam,norm);
-        float intensidad = max(dot(vect_ref,v1_norm),0.0);
-        float potencia = pow(intensidad,32.0)*d1;
+        float cos_especular = max(dot(vect_ref,v1_norm),0.0);
+        float potencia = pow(cos_especular,32.0)*d1;
 
         vec4 colorImage = texture(textura, out_uvs);
         vec4 brillo = colorImage * total + potencia;
