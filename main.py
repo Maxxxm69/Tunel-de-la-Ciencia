@@ -5,7 +5,7 @@ import glm
 import numpy as np
 from PIL import Image
 
-
+TUNELES=6
 ANCHO = int(1920/2)
 ALTO = int(1080/2)
 FOV = glm.radians(45) 
@@ -22,8 +22,6 @@ v2 = glm.vec3(0,1.5,0)
 velocidad=0.5
 velo_y = 0.0
 grav = 0.002
-lista=[-3,-2,-1,0,1,2,3]
-
 
 
 def abrirAtlas():
@@ -42,6 +40,7 @@ def leerArchivo():
     vt, out_vt = [], []
     cilindro = []
     objeto = ""
+    Objetos={}
     with open("cilindro.obj") as f:
         for linea in f:
             if linea.startswith("v "):
@@ -62,7 +61,10 @@ def leerArchivo():
                         out_nor.append(normales[int(v[2]) - 1])
             elif linea.startswith("o "):
                 objeto = linea.split()[1:][0]
-    return np.array(out_pos, dtype='f4'), np.array(out_nor, dtype='f4'), np.array(out_vt, dtype='f4'), np.array(cilindro, dtype='f4')
+                Objetos[objeto] = len(out_pos)
+            if linea.startswith(""):
+                ultima = len(out_pos)
+    return np.array(out_pos, dtype='f4'), np.array(out_nor, dtype='f4'), np.array(out_vt, dtype='f4'),np.array(cilindro, dtype='f4'),Objetos,ultima
 
 def mouseCallback(window,xpos,ypos):
     global yaw,pitch,last_x,last_y,primerMouse,direccion
@@ -176,7 +178,7 @@ def main():
     print(f"Debugg GPU detectada : {contx.info['GL_RENDERER']}") 
     contx.enable(moderngl.DEPTH_TEST)
     programa = contx.program(vertex_shader=codigo_vertex, fragment_shader=codigo_fragment)
-    a1, a2, uv,cilindro = leerArchivo()
+    a1, a2, uv,cilindro,Objetos,final = leerArchivo()
     vbo = contx.buffer(a1.tobytes())
     vbo_normales = contx.buffer(a2.tobytes())
     uv_buffer = contx.buffer(uv.tobytes())
@@ -198,8 +200,30 @@ def main():
         (vbo_normales, '3f', 'in_normales'),
         (uv_buffer, '2f', 'in_uvs'),
     ])
-    limite_z_inferior = (min(lista) * largo - largo / 2) + 3
-    limite_z_superior = (max(lista) * largo + largo / 2) - 3 
+
+    claves = list(Objetos.keys())
+    rangos = {}
+    for i, nombre in enumerate(claves):
+        inicio = Objetos[nombre]
+        if i+1< len(claves):
+            siguiente_inicio = Objetos[claves[i + 1]]
+            cantidad = siguiente_inicio - inicio
+        else:
+            cantidad = final - inicio
+        
+        rangos[nombre]={
+            'inicio':inicio,
+            'cantidad':cantidad,
+        }
+
+    lista = []
+    for i in range(TUNELES):
+        lista.append(i)
+        lista.append(-i)
+        lista = list(set(lista))
+    lista.sort()
+    limite_z_inferior = (min(lista) * largo - largo / 2)+2
+    limite_z_superior = (max(lista) * largo + largo / 2)-2
 
     glfw.set_cursor_pos_callback(window, mouseCallback)
     glfw.set_input_mode(window, glfw.CURSOR, glfw.CURSOR_DISABLED)
@@ -255,6 +279,8 @@ def main():
         programa['matriz_vista'].write(matrizCamara.to_bytes())
         programa['matriz_proyeccion'].write(matrizPerspectiva.to_bytes())
         programa['posicion_camara']=v2
+
+
         #al final se debe limpiar la pantalla para mostrar lo siguiente 
         contx.clear(0.15,0.15,0.15, 1.0, depth=1.0)
 
@@ -266,9 +292,15 @@ def main():
             elif i%2 == 1:
                 matriz_escalar = glm.scale(glm.vec3(1,1,-1))
             matriz_modelo = matriz_traslacion * matriz_escalar
-            programa['matriz_traslacion'].write(matriz_modelo)
             programa['lampara_1'].value = (centro[0], centro[1], centro[2] + desplazamiento)
-            vao.render()
+            programa['matriz_traslacion'].write(matriz_modelo)
+            if np.abs(i) >= max(lista):
+                vao.render(vertices=rangos.get("Plane").get("cantidad"),first=rangos.get("Plane").get("inicio"))
+                vao.render(vertices=rangos.get("Cylinder.001").get("cantidad"),first=rangos.get("Cylinder.001").get("inicio"))
+            else:
+                vao.render(vertices=rangos.get("Plane").get("cantidad"),first=rangos.get("Plane").get("inicio"))
+                vao.render(vertices=rangos.get("Cylinder").get("cantidad"),first=rangos.get("Cylinder").get("inicio"))
+                
         #como glfw usa dos buffers uno para mostrar y otro para procesar
         #de fondo hay que indicar que haga el swap de estos buffers
         glfw.swap_buffers(window)
