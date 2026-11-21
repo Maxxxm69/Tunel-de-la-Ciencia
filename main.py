@@ -4,6 +4,7 @@ import math
 import glm
 import numpy as np
 from PIL import Image
+import time
 
 TUNELES=6
 ANCHO = int(1920/2)
@@ -19,9 +20,9 @@ last_y = ALTO / 2
 primerMouse = True
 direccion = glm.vec3(0.0, 0.0, -1.0)
 v2 = glm.vec3(0,1.5,0)
-velocidad=0.5
+velocidad=3.0
 velo_y = 0.0
-grav = 0.002
+grav = 7.2
 
 
 def abrirAtlas():
@@ -116,7 +117,7 @@ def main():
         return
 
     glfw.make_context_current(window)
-    glfw.swap_interval(1)
+    glfw.swap_interval(0)
 
     # Bloque 3 Configuracion de 
     codigo_vertex = """
@@ -237,9 +238,21 @@ def main():
 
     glfw.set_cursor_pos_callback(window, mouseCallback)
     glfw.set_input_mode(window, glfw.CURSOR, glfw.CURSOR_DISABLED)
-
+    frames = 0
     #Bucle de renderizado
+    inicio = time.perf_counter()
+    anterior = time.perf_counter()
     while not glfw.window_should_close(window):
+        frames +=1
+        ahora = time.perf_counter()
+        dt = min(ahora-anterior,0.05)
+        anterior = ahora
+        if ahora-inicio> 0.5:
+            fps = frames/(ahora-inicio)
+            glfw.set_window_title(window,f"Tunel de la Ciencia | FPS : {fps:.1f} ")
+            inicio = ahora
+            frames=0
+
         # aca va la renderizacion que hare con ModernGL
         glfw.poll_events() #para procesar los eventos
         matrizPerspectiva = glm.perspective(FOV, RATIO,0.1,1000)    
@@ -250,20 +263,22 @@ def main():
         direccion_piso = glm.normalize(direccion_piso)
         vec_mov = glm.vec3(0,0,0)
         if glfw.get_key(window, glfw.KEY_W) == glfw.PRESS:
-            vec_mov += velocidad * direccion_piso
+            vec_mov += velocidad * direccion_piso * dt
 
         if glfw.get_key(window, glfw.KEY_S) == glfw.PRESS:
-            vec_mov -= velocidad * direccion_piso    
+            vec_mov -= velocidad * direccion_piso * dt
 
         derecha = glm.normalize(glm.cross(direccion, v1))
 
         if glfw.get_key(window, glfw.KEY_A) == glfw.PRESS:
-            vec_mov -= velocidad * derecha
+            vec_mov -= velocidad * derecha * dt
         if glfw.get_key(window, glfw.KEY_D) == glfw.PRESS:
-            vec_mov += velocidad * derecha
+            vec_mov += velocidad * derecha * dt
+        if glfw.get_key(window, glfw.KEY_ESCAPE) == glfw.PRESS:
+            glfw.set_window_should_close(window, True)
 
-        velo_y -= grav
-        v2.y += velo_y
+        velo_y -= grav *dt
+        v2.y += velo_y *dt
 
         if v2.y < 1 :
             velo_y = 0
@@ -273,7 +288,7 @@ def main():
             suelo =  False
 
         if suelo and glfw.get_key(window, glfw.KEY_SPACE) == glfw.PRESS:
-            velo_y = 0.06
+            velo_y = 3.6
         
         posicion_candidata =  v2 + vec_mov
         distancia = math.sqrt((centro[0] - posicion_candidata.x)**2 + (centro[1] - posicion_candidata.y)**2)
