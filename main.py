@@ -5,99 +5,20 @@ import glm
 import numpy as np
 from PIL import Image
 import time
-
-TUNELES=6
-ANCHO = int(1920/2)
-ALTO = int(1080/2)
-FOV = glm.radians(45) 
-RATIO = ANCHO/ALTO
-SENS = 0.1
-IMAGEN = "atlas.png"
-yaw = -90.0
-pitch = 0.0
-last_x = ANCHO / 2
-last_y = ALTO / 2
-primerMouse = True
-direccion = glm.vec3(0.0, 0.0, -1.0)
-v2 = glm.vec3(0,1.5,0)
-velocidad=3.0
-velo_y = 0.0
-grav = 7.2
+import config
+import modelo
+import camara
 
 
 def abrirAtlas():
-    with Image.open(IMAGEN) as im:
+    with Image.open(config.IMAGEN) as im:
         canales = im.transpose(method=Image.FLIP_TOP_BOTTOM)
         canales = canales.convert("RGB")
         tamano = canales.size
         px = canales.tobytes()
     return tamano, canales, px
 
-
-
-def leerArchivo():
-    posiciones, normales = [], []
-    out_pos, out_nor = [], []
-    vt, out_vt = [], []
-    cilindro = []
-    objeto = ""
-    Objetos={}
-    with open("cilindro.obj") as f:
-        for linea in f:
-            if linea.startswith("v "):
-                posiciones.append([float(a) for a in linea.split()[1:]])
-            elif linea.startswith("vn "):
-                normales.append([float(a) for a in linea.split()[1:]])
-            elif linea.startswith("vt "):
-                vt.append([float(a) for a in linea.split()[1:]])
-            elif linea.startswith("f "):
-                cara = [p.split("/") for p in linea.split()[1:]]
-                for i in range(1, len(cara) - 1):
-                    for k in (0, i, i + 1):
-                        v = cara[k]
-                        out_pos.append(posiciones[int(v[0]) - 1])
-                        if objeto == "Cylinder":
-                            cilindro.append(posiciones[int(v[0]) - 1])
-                        out_vt.append(vt[int(v[1]) - 1])
-                        out_nor.append(normales[int(v[2]) - 1])
-            elif linea.startswith("o "):
-                objeto = linea.split()[1:][0]
-                Objetos[objeto] = len(out_pos)
-            if linea.startswith(""):
-                ultima = len(out_pos)
-    return np.array(out_pos, dtype='f4'), np.array(out_nor, dtype='f4'), np.array(out_vt, dtype='f4'),np.array(cilindro, dtype='f4'),Objetos,ultima
-
-def mouseCallback(window,xpos,ypos):
-    global yaw,pitch,last_x,last_y,primerMouse,direccion
-    #para evitar el primer sobresalto de la camara
-    if(primerMouse):
-        last_x = ANCHO/2
-        last_y = ALTO/2
-        primerMouse = False
-
-    xOff = xpos-last_x
-    yOff = last_y-ypos
-    last_x = xpos
-    last_y = ypos
-    xOff *= SENS
-    yOff *= SENS
-    pitch += yOff
-    yaw += xOff
-    #restricciones en la camara para evitar movimientos indeseados
-    if(pitch > 89):
-        pitch = 89
-    if(pitch < -89):
-        pitch = -89
-    
-    direccion_x = math.cos(glm.radians(pitch)) * math.cos(glm.radians(yaw))
-    direccion_y = math.sin(glm.radians(pitch)) 
-    direccion_z = math.cos(glm.radians(pitch)) * math.sin(glm.radians(yaw))
-    direccion = glm.vec3(direccion_x, direccion_y, direccion_z)
-
-
-
 def main():
-    global v2, velo_y
     #Preparacion del entorno
     #iniciaizacion de glfw
     if not glfw.init():
@@ -109,7 +30,7 @@ def main():
     glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
 
     #creacion de una ventana y contexto
-    window = glfw.create_window(ANCHO,ALTO, "Tunel de la Ciencia", None, None)
+    window = glfw.create_window(config.ANCHO,config.ALTO, "Tunel de la Ciencia", None, None)
     if not window:
         glfw.terminate()
         raise Exception("No se creo la ventana de GLFW")
@@ -188,7 +109,7 @@ def main():
     print(f"Debugg GPU detectada : {contx.info['GL_RENDERER']}") 
     contx.enable(moderngl.DEPTH_TEST)
     programa = contx.program(vertex_shader=codigo_vertex, fragment_shader=codigo_fragment)
-    a1, a2, uv,cilindro,Objetos,final = leerArchivo()
+    a1, a2, uv,cilindro,Objetos,final = modelo.leerArchivo()
     vbo = contx.buffer(a1.tobytes())
     vbo_normales = contx.buffer(a2.tobytes())
     uv_buffer = contx.buffer(uv.tobytes())
@@ -227,7 +148,7 @@ def main():
         }
 
     lista = []
-    for i in range(TUNELES):
+    for i in range(config.TUNELES):
         lista.append(i)
         lista.append(-i)
         lista = list(set(lista))
@@ -235,7 +156,7 @@ def main():
     limite_z_inferior = (min(lista) * largo - largo / 2)+2
     limite_z_superior = (max(lista) * largo + largo / 2)-2
 
-    glfw.set_cursor_pos_callback(window, mouseCallback)
+    glfw.set_cursor_pos_callback(window, camara.mouseCallback)
     glfw.set_input_mode(window, glfw.CURSOR, glfw.CURSOR_DISABLED)
     frames = 0
     #Bucle de renderizado
@@ -253,60 +174,60 @@ def main():
             frames=0
 
         glfw.poll_events() 
-        matrizPerspectiva = glm.perspective(FOV, RATIO,0.1,1000)    
+        matrizPerspectiva = glm.perspective(config.FOV, config.RATIO,0.1,1000)    
         #vectores para la camara
         v1 = glm.vec3(0,1,0)
         v3 = glm.vec3(0,1,-5)
         #vector de movimiento
         vec_mov = glm.vec3(0,0,0)
 
-        direccion_piso = glm.vec3(direccion.x, 0.0, direccion.z)
-        direccion_piso = glm.normalize(direccion_piso)
+        camara.direccion_piso = glm.vec3(camara.direccion.x, 0.0, camara.direccion.z)
+        camara.direccion_piso = glm.normalize(camara.direccion_piso)
         
         #Movimientos del personaje
         if glfw.get_key(window, glfw.KEY_W) == glfw.PRESS:
-            vec_mov += velocidad * direccion_piso * dt
+            vec_mov += camara.velocidad * camara.direccion_piso * dt
 
         if glfw.get_key(window, glfw.KEY_S) == glfw.PRESS:
-            vec_mov -= velocidad * direccion_piso * dt
+            vec_mov -= camara.velocidad * camara.direccion_piso * dt
 
-        derecha = glm.normalize(glm.cross(direccion, v1))
+        derecha = glm.normalize(glm.cross(camara.direccion, v1))
 
         if glfw.get_key(window, glfw.KEY_A) == glfw.PRESS:
-            vec_mov -= velocidad * derecha * dt
+            vec_mov -= camara.velocidad * derecha * dt
         if glfw.get_key(window, glfw.KEY_D) == glfw.PRESS:
-            vec_mov += velocidad * derecha * dt
+            vec_mov += camara.velocidad * derecha * dt
         if glfw.get_key(window, glfw.KEY_ESCAPE) == glfw.PRESS:
             glfw.set_window_should_close(window, True)
 
-        velo_y -= grav *dt
-        v2.y += velo_y *dt
+        camara.velo_y -= camara.grav *dt
+        camara.v2.y += camara.velo_y *dt
 
-        if v2.y < 1 :
-            velo_y = 0
-            v2 = glm.vec3(v2.x,1.0,v2.z)
+        if camara.v2.y < 1 :
+            camara.velo_y = 0
+            camara.v2 = glm.vec3(camara.v2.x,1.0,camara.v2.z)
             suelo = True
         else:
             suelo =  False
 
         if suelo and glfw.get_key(window, glfw.KEY_SPACE) == glfw.PRESS:
-            velo_y = 3.6
+            camara.velo_y = 3.6
         
         #Verificacion si el movimiento cumple con las limitaciones del cilindro
-        posicion_candidata =  v2 + vec_mov
+        posicion_candidata =  camara.v2 + vec_mov
         distancia = math.sqrt((centro[0] - posicion_candidata.x)**2 + (centro[1] - posicion_candidata.y)**2)
         posicion_candidata.z = max(limite_z_inferior, min(posicion_candidata.z,limite_z_superior))
 
         if distancia < radio:
-            v2 = posicion_candidata
+            camara.v2 = posicion_candidata
         else:
-            v2 = glm.vec3(v2.x, v2.y, posicion_candidata.z)
+            camara.v2 = glm.vec3(camara.v2.x, camara.v2.y, posicion_candidata.z)
         
 
-        matrizCamara = glm.lookAt(v2,v2+direccion,v1)
+        matrizCamara = glm.lookAt(camara.v2,camara.v2+camara.direccion,v1)
         programa['matriz_vista'].write(matrizCamara.to_bytes())
         programa['matriz_proyeccion'].write(matrizPerspectiva.to_bytes())
-        programa['posicion_camara']=v2
+        programa['posicion_camara']=camara.v2
         programa['tiempo'].value=glfw.get_time()
 
         contx.clear(0.03, 0.02, 0.07, 1.0, depth=1.0)
