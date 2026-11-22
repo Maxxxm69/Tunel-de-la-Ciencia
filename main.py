@@ -83,7 +83,7 @@ def mouseCallback(window,xpos,ypos):
     yOff *= SENS
     pitch += yOff
     yaw += xOff
-    # restricciones para que no haga movimientos locos
+    #restricciones en la camara para evitar movimientos indeseados
     if(pitch > 89):
         pitch = 89
     if(pitch < -89):
@@ -104,7 +104,6 @@ def main():
         #manejo de errores
         raise Exception("No se inicializo glfw")
 
-    #hints los parametros son constantes de GLFW
     glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 3)
     glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 3)
     glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
@@ -253,15 +252,18 @@ def main():
             inicio = ahora
             frames=0
 
-        # aca va la renderizacion que hare con ModernGL
-        glfw.poll_events() #para procesar los eventos
+        glfw.poll_events() 
         matrizPerspectiva = glm.perspective(FOV, RATIO,0.1,1000)    
         #vectores para la camara
         v1 = glm.vec3(0,1,0)
         v3 = glm.vec3(0,1,-5)
+        #vector de movimiento
+        vec_mov = glm.vec3(0,0,0)
+
         direccion_piso = glm.vec3(direccion.x, 0.0, direccion.z)
         direccion_piso = glm.normalize(direccion_piso)
-        vec_mov = glm.vec3(0,0,0)
+        
+        #Movimientos del personaje
         if glfw.get_key(window, glfw.KEY_W) == glfw.PRESS:
             vec_mov += velocidad * direccion_piso * dt
 
@@ -290,6 +292,7 @@ def main():
         if suelo and glfw.get_key(window, glfw.KEY_SPACE) == glfw.PRESS:
             velo_y = 3.6
         
+        #Verificacion si el movimiento cumple con las limitaciones del cilindro
         posicion_candidata =  v2 + vec_mov
         distancia = math.sqrt((centro[0] - posicion_candidata.x)**2 + (centro[1] - posicion_candidata.y)**2)
         posicion_candidata.z = max(limite_z_inferior, min(posicion_candidata.z,limite_z_superior))
@@ -306,9 +309,10 @@ def main():
         programa['posicion_camara']=v2
         programa['tiempo'].value=glfw.get_time()
 
-        #al final se debe limpiar la pantalla para mostrar lo siguiente 
         contx.clear(0.03, 0.02, 0.07, 1.0, depth=1.0)
 
+
+        #Generacion de las diferentes copias del cilindro
         for i in lista:
             desplazamiento = i*largo
             matriz_traslacion = glm.translate(glm.vec3(0,0,float(desplazamiento)))
@@ -320,6 +324,7 @@ def main():
             programa['lampara_1'].value = (centro[0], centro[1], centro[2] + desplazamiento)
             programa['matriz_traslacion'].write(matriz_modelo)
             programa['fase'].value= i*1.7
+            #Condicional para decidir cual copia le corresponde a la entrada o salida del tunel
             if np.abs(i) >= max(lista):
                 programa['emisivo'].value = 0.0
                 vao.render(vertices=rangos.get("Cylinder.001").get("cantidad"),first=rangos.get("Cylinder.001").get("inicio"))
@@ -329,11 +334,8 @@ def main():
             programa['emisivo'].value = 0.0
             vao.render(vertices=rangos.get("Plane").get("cantidad"),first=rangos.get("Plane").get("inicio"))
 
-        #como glfw usa dos buffers uno para mostrar y otro para procesar
-        #de fondo hay que indicar que haga el swap de estos buffers
         glfw.swap_buffers(window)
     
-    # terminar y cerrar glfw
     glfw.terminate()
 
 if __name__ == "__main__":
