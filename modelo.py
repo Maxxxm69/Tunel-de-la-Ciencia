@@ -1,4 +1,5 @@
 import numpy as np
+import config
 
 def leerArchivo():
     posiciones, normales = [], []
@@ -31,3 +32,34 @@ def leerArchivo():
             if linea.startswith(""):
                 ultima = len(out_pos)
     return np.array(out_pos, dtype='f4'), np.array(out_nor, dtype='f4'), np.array(out_vt, dtype='f4'),np.array(cilindro, dtype='f4'),Objetos,ultima
+
+
+posiciones,normales, uv,cilindro,Objetos,final = leerArchivo()
+claves = list(Objetos.keys())
+rangos = {}
+for i, nombre in enumerate(claves):
+    inicio = Objetos[nombre]
+    if i+1< len(claves):
+        siguiente_inicio = Objetos[claves[i + 1]]
+        cantidad = siguiente_inicio - inicio
+    else:
+        cantidad = final - inicio
+    
+    rangos[nombre]={
+        'inicio':inicio,
+        'cantidad':cantidad,
+    }
+minimos = cilindro.min(axis=0)
+maximos = cilindro.max(axis=0)
+centro  = (minimos + maximos) / 2
+radio = np.abs(centro[0] - maximos[0])
+largo = maximos[2] - minimos[2]
+
+lista = []
+for i in range(config.TUNELES):
+    lista.append(i)
+    lista.append(-i)
+    lista = list(set(lista))
+lista.sort()
+limite_z_inferior = (min(lista) * largo - largo / 2)+2
+limite_z_superior = (max(lista) * largo + largo / 2)-2
