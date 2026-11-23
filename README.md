@@ -133,9 +133,9 @@ enfocan en las instrucciones de este sistema.
 # Clonar el repositorio 
 git clone https://github.com/Maxxxm69/Tunel-de-la-Ciencia
 # Acceder al directorio
-cd túnel-de-la-Ciencia/
+cd Tunel-de-la-Ciencia/
 # Crear entorno virtual y activar 
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate
 # Instalar dependencias y requerimientos
 pip install -r requirements.txt
