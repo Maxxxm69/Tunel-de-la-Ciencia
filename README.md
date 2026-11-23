@@ -131,7 +131,7 @@ enfocan en las instrucciones de este sistema.
 ## Instalación
 ```bash
 # Clonar el repositorio 
-git clone https://github.com/Maxxxm69/túnel-de-la-Ciencia
+git clone https://github.com/Maxxxm69/Tunel-de-la-Ciencia
 # Acceder al directorio
 cd túnel-de-la-Ciencia/
 # Crear entorno virtual y activar 
