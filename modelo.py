@@ -8,7 +8,7 @@ def leerArchivo():
     cilindro = []
     objeto = ""
     Objetos={}
-    with open("cilindro.obj") as f:
+    with open("recursos/cilindro.obj") as f:
         for linea in f:
             if linea.startswith("v "):
                 posiciones.append([float(a) for a in linea.split()[1:]])
