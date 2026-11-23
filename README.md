@@ -155,6 +155,9 @@ en las secciones anteriores.
 ## Integrantes
 
 **Nombre**: Gutierrez Miguel Maximiliano de Jesus
+
 **Asignatura**: Computer Graphics
+
 **Profesora**: Rosaura Palma Orozco
+
 **Semestre**: Agosto-Diciembre 2026
