@@ -154,8 +154,7 @@ en las secciones anteriores.
 
 ## Integrantes
 
-**Nombre**: Gutierrez Miguel Maximiliano de Jesus
-
+**Nombre**: 
 **Asignatura**: Computer Graphics
 
 **Profesora**: Rosaura Palma Orozco
